@@ -3,6 +3,121 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+_all_regions_ = [
+    'Right-Hippocampus', 'rh.cuneus', 'rh.paracentral', 'lh.supramarginal', 'lh.isthmuscingulate', 
+    'rh.postcentral', 'lh.lateralorbitofrontal', 'rh.lateralorbitofrontal', 'lh.rostralanteriorcingulate', 
+    'lh.lateraloccipital', 'lh.fusiform', 'rh.fusiform', 'rh.middletemporal', 'lh.lingual', 'lh.parsopercularis', 
+    'lh.caudalmiddlefrontal', 'rh.entorhinal', 'Right-Putamen', 'lh.caudalanteriorcingulate', 'lh.superiortemporal', 
+    'rh.medialorbitofrontal', 'Left-Putamen', 'lh.parsorbitalis', 'rh.isthmuscingulate', 'Left-Caudate', 
+    'Right-Thalamus-Proper', 'rh.posteriorcingulate', 'lh.parstriangularis', 'lh.paracentral', 'lh.superiorparietal', 
+    'lh.medialorbitofrontal', 'rh.rostralanteriorcingulate', 'rh.superiorparietal', 'rh.inferiorparietal', 
+    'lh.rostralmiddlefrontal', 'rh.parahippocampal', 'lh.middletemporal', 'rh.caudalmiddlefrontal', 'lh.superiorfrontal', 
+    'lh.temporalpole', 'rh.parsopercularis', 'rh.superiortemporal', 'rh.caudalanteriorcingulate', 'lh.transversetemporal', 
+    'rh.transversetemporal', 'rh.precentral', 'rh.frontalpole', 'lh.entorhinal', 'lh.postcentral', 'lh.insula', 
+    'rh.lateraloccipital', 'Brain-Stem', 'rh.precuneus', 'Right-Amygdala', 'Right-Caudate', 'rh.parstriangularis', 
+    'Left-Hippocampus', 'rh.supramarginal', 'Left-Thalamus-Proper', 'Left-Accumbens-area', 'rh.rostralmiddlefrontal', 
+    'Right-Accumbens-area', 'lh.inferiorparietal', 'lh.frontalpole', 'rh.temporalpole', 'lh.posteriorcingulate', 
+    'lh.parahippocampal', 'rh.inferiortemporal', 'lh.inferiortemporal', 'Left-Amygdala', 'lh.bankssts', 'lh.precuneus', 
+    'rh.insula', 'rh.lingual', 'rh.parsorbitalis', 'rh.pericalcarine', 'rh.superiorfrontal', 'lh.pericalcarine', 
+    'lh.precentral', 'lh.cuneus', 'Right-Pallidum', 'Left-Pallidum', 'rh.bankssts'
+    ]
+
+_colors_ = {
+# "lh.unknown" :                      (25 , 5  , 25 , 0),
+"lh.bankssts" :                     (25 , 100, 40 , 255),
+"lh.caudalanteriorcingulate" :      (125, 100, 160, 255),
+"lh.caudalmiddlefrontal" :          (100, 25 , 0  , 255),
+# "lh.corpuscallosum" :               (120, 70 , 50 , 0),
+"lh.cuneus" :                       (220, 20 , 100, 255),
+"lh.entorhinal" :                   (220, 20 , 10 , 255),
+"lh.fusiform" :                     (180, 220, 140, 255),
+"lh.inferiorparietal" :             (220, 60 , 220, 255),
+"lh.inferiortemporal" :             (180, 40 , 120, 255),
+"lh.isthmuscingulate" :             (140, 20 , 140, 255),
+"lh.lateraloccipital" :             (20 , 30 , 140, 255),
+"lh.lateralorbitofrontal" :         (35 , 75 , 50 , 255),
+"lh.lingual" :                      (225, 140, 140, 255),
+"lh.medialorbitofrontal" :          (200, 35 , 75 , 255),
+"lh.middletemporal" :               (160, 100, 50 , 255),
+"lh.parahippocampal" :              (20 , 220, 60 , 255),
+"lh.paracentral" :                  (60 , 220, 60 , 255),
+"lh.parsopercularis" :              (220, 180, 140, 255),
+"lh.parsorbitalis" :                (20 , 100, 50 , 255),
+"lh.parstriangularis" :             (220, 60 , 20 , 255),
+"lh.pericalcarine" :                (120, 100, 60 , 255),
+"lh.postcentral" :                  (220, 20 , 20 , 255),
+"lh.posteriorcingulate" :           (220, 180, 220, 255),
+"lh.precentral" :                   (60 , 20 , 220, 255),
+"lh.precuneus" :                    (160, 140, 180, 255),
+"lh.rostralanteriorcingulate" :     (80 , 20 , 140, 255),
+"lh.rostralmiddlefrontal" :         (75 , 50 , 125, 255),
+"lh.superiorfrontal" :              (20 , 220, 160, 255),
+"lh.superiorparietal" :             (20 , 180, 140, 255),
+"lh.superiortemporal" :             (140, 220, 220, 255),
+"lh.supramarginal" :                (80 , 160, 20 , 255),
+"lh.frontalpole" :                  (100, 0  , 100, 255),
+"lh.temporalpole" :                 (70 , 70 , 70 , 255),
+"lh.transversetemporal" :           (150, 150, 200, 255),
+"lh.insula" :                       (255, 192, 32 , 255),
+"Left-Pallidum" :                   (13,  48,  255, 255),
+"Left-Accumbens-area" :             (255, 165, 0,   255),
+"Left-Amygdala" :                   (103, 255, 255, 255),
+"Left-Thalamus-Proper" :            (0,   118, 14,  255),
+"Left-Hippocampus" :                (220, 216, 20,  255),
+"Left-Caudate" :                    (122, 186, 220, 255),
+"Left-Putamen" :                    (236, 13,  176, 255),
+
+# "rh.unknown" :                      (25 , 5  , 25 , 0),
+"rh.bankssts" :                     (25 , 100, 40 , 255),
+"rh.caudalanteriorcingulate" :      (125, 100, 160, 255),
+"rh.caudalmiddlefrontal" :          (100, 25 , 0  , 255),
+# "rh.corpuscallosum" :               (120, 70 , 50 , 0),
+"rh.cuneus" :                       (220, 20 , 100, 255),
+"rh.entorhinal" :                   (220, 20 , 10 , 255),
+"rh.fusiform" :                     (180, 220, 140, 255),
+"rh.inferiorparietal" :             (220, 60 , 220, 255),
+"rh.inferiortemporal" :             (180, 40 , 120, 255),
+"rh.isthmuscingulate" :             (140, 20 , 140, 255),
+"rh.lateraloccipital" :             (20 , 30 , 140, 255),
+"rh.lateralorbitofrontal" :         (35 , 75 , 50 , 255),
+"rh.lingual" :                      (225, 140, 140, 255),
+"rh.medialorbitofrontal" :          (200, 35 , 75 , 255),
+"rh.middletemporal" :               (160, 100, 50 , 255),
+"rh.parahippocampal" :              (20 , 220, 60 , 255),
+"rh.paracentral" :                  (60 , 220, 60 , 255),
+"rh.parsopercularis" :              (220, 180, 140, 255),
+"rh.parsorbitalis" :                (20 , 100, 50 , 255),
+"rh.parstriangularis" :             (220, 60 , 20 , 255),
+"rh.pericalcarine" :                (120, 100, 60 , 255),
+"rh.postcentral" :                  (220, 20 , 20 , 255),
+"rh.posteriorcingulate" :           (220, 180, 220, 255),
+"rh.precentral" :                   (60 , 20 , 220, 255),
+"rh.precuneus" :                    (160, 140, 180, 255),
+"rh.rostralanteriorcingulate" :     (80 , 20 , 140, 255),
+"rh.rostralmiddlefrontal" :         (75 , 50 , 125, 255),
+"rh.superiorfrontal" :              (20 , 220, 160, 255),
+"rh.superiorparietal" :             (20 , 180, 140, 255),
+"rh.superiortemporal" :             (140, 220, 220, 255),
+"rh.supramarginal" :                (80 , 160, 20 , 255),
+"rh.frontalpole" :                  (100, 0  , 100, 255),
+"rh.temporalpole" :                 (70 , 70 , 70 , 255),
+"rh.transversetemporal" :           (150, 150, 200, 255),
+"rh.insula" :                       (255, 192, 32 , 255),
+"Right-Pallidum" :                  (13,  48,  255, 255),
+"Right-Accumbens-area" :            (255, 165, 0,   255),
+"Right-Amygdala" :                  (103, 255, 255, 255),
+"Right-Thalamus-Proper" :           (0,   118, 14,  255),
+"Right-Hippocampus" :               (220, 216, 20,  255),
+"Right-Caudate" :                   (122, 186, 220, 255),
+"Right-Putamen" :                   (236, 13,  176, 255),
+
+"Brain-Stem" :                      (119, 159, 176, 255)
+}
+
+# Normalize colors
+_colors_ = { key : (R/255., G/255., B/255., A/255.) for key,[R,G,B,A] in _colors_.items() }
+
+
 class Connectome:
     
     def __init__(self, G, quantities = None, time = None):
@@ -216,7 +331,7 @@ class Connectome:
             ax.scatter(self.nodes_info[node]['dn_position_x'],
                        self.nodes_info[node]['dn_position_y'],
                        self.nodes_info[node]['dn_position_z'],
-                       marker='o', s=normal_size, color='blue')
+                       marker='o', s=normal_size, color=[(1.,1.,1.,1.)], edgecolors='black')
         if links:
             for n1,n2 in self.G.edges():
                 ax.plot([self.nodes_info[n1]['dn_position_x'],self.nodes_info[n2]['dn_position_x']],
@@ -232,7 +347,7 @@ class Connectome:
 
             for node in highlight_nodes:
                 ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
-                            marker='o', s=highlight_size, color='red')
+                            marker='o', s=highlight_size, color=[(1.,0.,0.,1.)], edgecolors='black')
            
         elif region is not None:
             highlight_nodes = self.getNodesInRegion(region=region)
@@ -240,7 +355,7 @@ class Connectome:
 
             for node in highlight_nodes:
                 ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
-                            marker='o', s=highlight_size, color='red')
+                            marker='o', s=highlight_size, color=[(1.,0.,0.,1.)], edgecolors='black')
 
         else: plt.title('Connectome', fontsize=16, fontweight='bold')
 
@@ -251,36 +366,53 @@ class Connectome:
         plt.show()
         
 
-    def drawRegions(self, regions = None):
+    def drawRegions(self, regions, links=True):
         """
         Description
         -----------
-        Connectome visualization function for regions. Needs to be improved.
+        Connectome visualization function for regions. The colors are the ones given by FreeSurfer
         """
-        colors = ['red', 'red', 'black','black','green','green', 'yellow', 'yellow', 'orange', 'grey']
-        highlight_nodes_size = 20
-        normal_size = 15
+        
+        highlight_nodes_size = 60
+        normal_size = 35
 
         fig = plt.figure(figsize=(12, 9))
         ax = fig.add_subplot(projection='3d')
         ax.view_init(elev=10, azim=-90)
 
-        highlighted_nodes = [self.getNodesInRegion(region) for region in regions]
+        if links:
+            for n1,n2 in self.G.edges():
+                ax.plot([self.nodes_info[n1]['dn_position_x'],self.nodes_info[n2]['dn_position_x']],
+                        [self.nodes_info[n1]['dn_position_y'],self.nodes_info[n2]['dn_position_y']],
+                        [self.nodes_info[n1]['dn_position_z'],self.nodes_info[n2]['dn_position_z']], 'black', linestyle='-', linewidth=0.05)        
+            
 
+        if regions == 'all':
+            regions = _all_regions_
+            colors = _colors_
+        
+        colors = [_colors_[reg] for reg in regions] 
+
+        highlighted_nodes = [self.getNodesInRegion(region) for region in regions]
+       
         flat = [n for region in highlighted_nodes for n in region]
+
 
         for node in [n for n in self.G.nodes() if n not in flat]:
             ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
-                        marker='o', s=normal_size, color='blue')
+                        marker='o', s=normal_size, color=[(1.,1.,1.,1.)], edgecolors='black')
             
         for ind, highlighted_nodes_sub in enumerate(highlighted_nodes):
             for ind2,node in enumerate(highlighted_nodes_sub):
-                if ind2==0:
+                
+                if ind2==0: # Label only on the first one
                     ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
-                                marker='o', s=highlight_nodes_size, color=colors[ind], label=regions[ind])
+                                marker='o', s=highlight_nodes_size, c=list(colors[ind]), label=regions[ind])
+                    print(ind, list(colors[ind]), edgecolors='black')
                 else:
                     ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
-                                marker='o', s=highlight_nodes_size, color=colors[ind])
+                                marker='o', s=highlight_nodes_size, c=list(colors[ind]))
+                    print(ind, list(colors[ind]), edgecolors='black')
 
         plt.legend()
         ax.set_xlabel('x position', fontsize=12)

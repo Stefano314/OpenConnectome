@@ -6,7 +6,7 @@ class Grid3D:
     def __init__(self, pointsPosition, boxSubdivision):
 
         self._minCorner, self._maxCorner = self._GetCorners(pointsPosition)
-        self.cellSize = [0,0,0] # cellSize
+        self.cellSize = [0,0,0]
         self.xPoints = None
         self.yPoints = None
         self.zPoints = None
@@ -138,25 +138,25 @@ class Grid3D:
         else:
             gridCoordinates = np.zeros(shape=(len(searchPoints_copy),3))
             cellIndexes = []
-            cellIndexWithOriginal = dict()
+            cellsWithElements = dict()
 
             for ind,_ in enumerate(searchPoints_copy):
 
                 cellIndex = [int(np.rint(pointPositionRatio[ind][0] * (len(self.xPoints) - 1))),
-                            int(np.rint(pointPositionRatio[ind][1] * (len(self.yPoints) - 1))),
-                            int(np.rint(pointPositionRatio[ind][2] * (len(self.zPoints) - 1)))]
+                             int(np.rint(pointPositionRatio[ind][1] * (len(self.yPoints) - 1))),
+                             int(np.rint(pointPositionRatio[ind][2] * (len(self.zPoints) - 1)))]
 
                 cellIndexes.append(cellIndex)
 
-                if tuple(cellIndex) in cellIndexWithOriginal:
-                    cellIndexWithOriginal[tuple(cellIndex)].append(ind)
+                if tuple(cellIndex) in cellsWithElements:
+                    cellsWithElements[tuple(cellIndex)].append(ind)
                 else:
-                    cellIndexWithOriginal[tuple(cellIndex)] = [ind]
+                    cellsWithElements[tuple(cellIndex)] = [ind]
 
                 
                 gridCoordinates[ind] = [self.xPoints[cellIndex[0]], self.yPoints[cellIndex[1]], self.zPoints[cellIndex[2]]]
 
-        return cellIndexes, gridCoordinates, cellIndexWithOriginal
+        return cellIndexes, gridCoordinates, cellsWithElements
 
 
     def ShowPointsInGrid(self, searchPoints, remaining = False, margins=1, overlaps = False):
