@@ -313,15 +313,14 @@ class Connectome:
         return atrophy
 
 
-    def drawConnectome(self, highlight_nodes = None, region = None, links = False, normal_size=40, highlight_size=40):
+    def drawConnectome(self, highlight_nodes = None, region = None, links = False,
+                        normal_size=40, highlight_size=40, link_size = 0.1, title = 'Connectome'):
         """
         Description
         -----------
         Connectome visualization function. Is it also possible to highlight specific nodes/regions.
 
         """
-
-        link_size = 0.
 
         fig = plt.figure(figsize=(12, 9))
         ax = fig.add_subplot(projection='3d')
@@ -336,14 +335,14 @@ class Connectome:
             for n1,n2 in self.G.edges():
                 ax.plot([self.nodes_info[n1]['dn_position_x'],self.nodes_info[n2]['dn_position_x']],
                         [self.nodes_info[n1]['dn_position_y'],self.nodes_info[n2]['dn_position_y']],
-                        [self.nodes_info[n1]['dn_position_z'],self.nodes_info[n2]['dn_position_z']], 'b', linestyle='-', linewidth=link_size)        
+                        [self.nodes_info[n1]['dn_position_z'],self.nodes_info[n2]['dn_position_z']], 'black', linestyle='-', linewidth=link_size)        
             
         if highlight_nodes is not None:
 
             if isinstance(highlight_nodes, int):
                 highlight_nodes = [highlight_nodes]
             
-            plt.title(f'Connectome, nodes: {[self.nodes_info[i]["dn_name"] for i in highlight_nodes]}', fontsize=16, fontweight='bold')
+            plt.title(f'{title}, nodes: {[self.nodes_info[i]["dn_name"] for i in highlight_nodes]}', fontsize=16, fontweight='bold')
 
             for node in highlight_nodes:
                 ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
@@ -351,13 +350,13 @@ class Connectome:
            
         elif region is not None:
             highlight_nodes = self.getNodesInRegion(region=region)
-            plt.title(f'Connectome, Region: {region}', fontsize=16, fontweight='bold')
+            plt.title(f'{title}, Region: {region}', fontsize=16, fontweight='bold')
 
             for node in highlight_nodes:
                 ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
                             marker='o', s=highlight_size, color=[(1.,0.,0.,1.)], edgecolors='black')
 
-        else: plt.title('Connectome', fontsize=16, fontweight='bold')
+        else: plt.title(f'{title}', fontsize=16, fontweight='bold')
 
         ax.set_xlabel('x position', fontsize=12)
         ax.set_ylabel('y position', fontsize=12)
@@ -366,15 +365,12 @@ class Connectome:
         plt.show()
         
 
-    def drawRegions(self, regions, links=True):
+    def drawRegions(self, regions, links=True, normal_size = 50, region_size = 50, link_size = 0.1, title = "Connectome"):
         """
         Description
         -----------
         Connectome visualization function for regions. The colors are the ones given by FreeSurfer
         """
-        
-        highlight_nodes_size = 60
-        normal_size = 35
 
         fig = plt.figure(figsize=(12, 9))
         ax = fig.add_subplot(projection='3d')
@@ -384,7 +380,7 @@ class Connectome:
             for n1,n2 in self.G.edges():
                 ax.plot([self.nodes_info[n1]['dn_position_x'],self.nodes_info[n2]['dn_position_x']],
                         [self.nodes_info[n1]['dn_position_y'],self.nodes_info[n2]['dn_position_y']],
-                        [self.nodes_info[n1]['dn_position_z'],self.nodes_info[n2]['dn_position_z']], 'black', linestyle='-', linewidth=0.05)        
+                        [self.nodes_info[n1]['dn_position_z'],self.nodes_info[n2]['dn_position_z']], 'black', linestyle='-', linewidth=link_size)        
             
 
         if regions == 'all':
@@ -397,7 +393,6 @@ class Connectome:
        
         flat = [n for region in highlighted_nodes for n in region]
 
-
         for node in [n for n in self.G.nodes() if n not in flat]:
             ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
                         marker='o', s=normal_size, color=[(1.,1.,1.,1.)], edgecolors='black')
@@ -407,17 +402,16 @@ class Connectome:
                 
                 if ind2==0: # Label only on the first one
                     ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
-                                marker='o', s=highlight_nodes_size, c=list(colors[ind]), label=regions[ind])
-                    print(ind, list(colors[ind]), edgecolors='black')
+                                marker='o', s=region_size, c=list(colors[ind]), label=regions[ind], edgecolors='black')
                 else:
                     ax.scatter(self.nodes_info[node]['dn_position_x'], self.nodes_info[node]['dn_position_y'], self.nodes_info[node]['dn_position_z'],
-                                marker='o', s=highlight_nodes_size, c=list(colors[ind]))
-                    print(ind, list(colors[ind]), edgecolors='black')
+                                marker='o', s=region_size, c=list(colors[ind]), edgecolors='black')
 
         plt.legend()
         ax.set_xlabel('x position', fontsize=12)
         ax.set_ylabel('y position', fontsize=12)
         ax.set_zlabel('z position', fontsize=12)
+        plt.title(f"{title}", fontsize=16, fontweight='bold')
         plt.grid(alpha=0.4)
         plt.show()
 
