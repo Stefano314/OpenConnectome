@@ -122,7 +122,11 @@ class Connectome:
     
     def __init__(self, G, quantities = None, time = None):
         
-        self.G = G
+        if isinstance(G, str):
+            self.G = nx.read_graphml()
+        else:
+            self.G = G
+            
         self.nodes_info = self._relabel_nodes()
 
         self.quantities = quantities
