@@ -123,7 +123,7 @@ class Connectome:
     def __init__(self, G, quantities = None, time = None):
         
         if isinstance(G, str):
-            self.G = nx.read_graphml()
+            self.G = nx.read_graphml(G)
         else:
             self.G = G
             
@@ -136,11 +136,175 @@ class Connectome:
         self.G_prox = None
         self.all_regions = list(set([dict(self.G.nodes(data=True))[n]['dn_name'].split("_")[0] for n in self.G.nodes()]))
 
+        
+        # ////// Define model parameters //////
+        self.r_prox = 12.
+        self.CG = 0.1
+        self.CS = 0.01
+        self.CW = 0.01
+        self.CF = 10.
+        self.mu0 = 0.01 # in F
+        self.U_bar = 0.001 # for u2 in v
+        self.d1 = 0.1 
+        self.d2 = 0.1 
+        self.dw = 1.
+
+        self.alpha = np.ones(shape=(3,3))*10
+
+        self.s1 = 0.1
+        self.s2 = 0.1
+        self.s3 = 0.1
+        self.Cw = 10.
+        self.uw = 0.001
+        self.s4 = 1.1
+
+        self.Xi = 10.
+        self.Lambda = 25.
+
+        self.source_val = 1.
+
+
     @property
-    def nodes_position(self):
+    def nodesPosition(self):
         positions = {k: [self.nodes_info[k][v] for v in ['dn_position_x','dn_position_y','dn_position_z']] \
                             for k in self.nodes_info.keys()}
         return np.vstack(list(positions.values()))
+    
+    @property
+    def proximityConnectome(self):
+        if self.G_prox is None:
+            self.getProximityConnectome(r_max=self.r_prox)
+            return self.G_prox
+        else:
+            return self.G_prox
+
+    def alzheimerModelSimulation(self, G_prox = None, G_conn = None):
+
+        from scipy.integrate import solve_ivp
+        from scipy.integrate import trapezoid
+
+
+        if G_prox is None:
+            self.getProximityConnectome(self.r_prox)
+            G_prox = self.G_prox
+
+        if G_conn is None:
+            G_conn = self.G
+
+        L_prox = None
+        L_conn = None
+        L_prox = nx.laplacian_matrix(G_prox).toarray()
+        L_conn = nx.laplacian_matrix(G_conn).toarray()
+        del G_prox, G_conn
+
+        N = len(self.G.nodes())
+        M_a0 = len(self.a) # adding a0
+        M = M_a0-1 # a variable points without a0
+        h_a = 1./M_a0
+
+        # Boundary conditions
+        mask = np.ones(N*M_a0, bool)
+        mask[::M_a0] = False
+        C = np.zeros(N*M_a0)
+        C[mask] = 0. # f(a0, t) = 0, for all t
+
+        # Declare variables
+        f = np.zeros(N*M)
+        u1 = np.zeros(N)
+        u2 = np.zeros(N)
+        u3 = np.zeros(N)
+        w = np.zeros(N)
+
+        # Initial conditions
+        u1_0 = np.random.normal(loc=0.5, scale=0.1, size=N)
+        f[::M] = 1. # f(a1,t0)
+        u1[:] = u1_0
+        u2[:] = 0.
+        u3[:] = 0.
+
+        source_nodes = list(self.getNodesInRegion('lh.entorhinal'))
+        source_nodes.extend(self.getNodesInRegion('rh.entorhinal'))
+        w[source_nodes] = 0.
+        z0 = np.concatenate([f, u1, u2, u3, w])
+        del f, u1, u2, u3, w
+
+
+        def H(t, Xi, Lambda):
+            return Xi*np.exp(-t/Lambda)
+
+        def alzheimerModel(t, y, L_tau, L_abeta, C):
+
+            dydt = np.zeros(N*M+4*N) # Derivative variables
+            w_source = np.zeros(N)
+
+            if self.source_val == "H":
+                w_source[source_nodes] = H(t, Xi=self.Xi, Lambda=25)
+            else:
+                w_source[source_nodes] = self.source_val
+
+            C[mask] = y[:N*M]
+
+            fv = [C[k*M_a0:(k+1)*M_a0]*(self.CG * np.array([trapezoid(np.maximum(self.a-a_i, 0) * C[k*M_a0:(k+1)*M_a0], self.a) for a_i in self.a]) +\
+                self.CS*(1-self.a)*np.maximum(y[N*M+N:N*M+2*N][k]-self.U_bar,0) + \
+                self.CW*(1-self.a)*y[N*M+3*N:N*M+4*N][k]) for k in range(N)]
+
+            for k in range(N): # Slide all nodes to assign the M values of a
+                dydt[k*M:(k+1)*M] = -(np.diff(fv[k]))/(h_a)
+
+
+            dydt[N*M:N*M+N] = -self.d1*L_abeta @ y[N*M:N*M+N] - y[N*M:N*M+N]*(self.alpha[0,0]*y[N*M:N*M+N]+self.alpha[0,1]*y[N*M+N:N*M+2*N]+self.alpha[0,2]*y[N*M+2*N:N*M+3*N]) +\
+                              self.CF*np.array([trapezoid((self.mu0+self.a)*(1-self.a)*C[k*M_a0:(k+1)*M_a0], self.a) for k in range(N)]) -\
+                              self.s1*y[N*M:N*M+N] 
+
+            dydt[N*M+N:N*M+2*N] = -self.d2*L_abeta @ y[N*M+N:N*M+2*N] + 0.5*self.alpha[0,0]*y[N*M:N*M+N]*y[N*M:N*M+N]-y[N*M+N:N*M+2*N]*\
+                                   (self.alpha[1,0]*y[N*M:N*M+N]+self.alpha[1,1]*y[N*M+N:N*M+2*N]+self.alpha[1,2]*y[N*M+2*N:N*M+3*N]) - \
+                                   self.s2*y[N*M+N:N*M+2*N]
+            
+            dydt[N*M+2*N:N*M+3*N] = 0.5*(self.alpha[0,1]*y[N*M:N*M+N]*y[N*M+N:N*M+2*N]+self.alpha[0,2]*y[N*M:N*M+N]*y[N*M+2*N:N*M+3*N]+\
+                                          self.alpha[1,1]*y[N*M+N:N*M+2*N]*y[N*M+N:N*M+2*N]+self.alpha[1,2]*y[N*M+N:N*M+2*N]*y[N*M+2*N:N*M+3*N]) -\
+                                    self.s3*y[N*M+2*N:N*M+3*N]
+
+
+            # THIS HAS THE LINK WEIGHT INSTEAD OF ONES!
+            dydt[N*M+3*N:N*M+4*N] = (self.Cw*np.maximum(y[N*M+N:N*M+2*N]-self.uw,0) + \
+                                    -self.dw*L_tau @ y[N*M+3*N:N*M+4*N] - \
+                                    (self.s4-1)*y[N*M+3*N:N*M+4*N] + w_source)
+            
+            return dydt
+            
+            
+        import time as tm
+        t1 = tm.perf_counter()
+        sol = solve_ivp(alzheimerModel, t_span=[self.time[0],self.time[-1]], t_eval=self.time, y0=z0, method='RK23', args=(L_conn, L_prox, C))
+        print(tm.perf_counter()-t1)
+
+        # ///// Integrator solutions /////
+        self.quantities = [sol.y[:N*M,:], sol.y[N*M:N*M+N,:], sol.y[N*M+N:N*M+2*N,:], sol.y[N*M+2*N:N*M+3*N,:], sol.y[N*M+3*N:N*M+4*N,:]]
+
+        del sol
+    
+
+
+
+    def setIntegrationTime(self, time):
+        """
+        Description
+        -----------
+        Specify the time integration range for the simulation.
+        """
+
+        self.time = time
+
+    
+    def setA_Range(self, a_range):
+        """
+        Description
+        -----------
+        Sepcify the range of a variable. It must be between 0 and 1.
+        """
+
+        self.a = a_range
+
 
     def insertQuantities(self, quantities, time, a_range):
         """
