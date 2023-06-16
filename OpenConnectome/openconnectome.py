@@ -129,6 +129,13 @@ class Connectome:
             
         self.nodes_info = self._relabel_nodes()
 
+        # ONLY FOR LOG
+        self._elapsed_time = 0
+        self._source_region = []
+        self._min_max_tau = [0.,0.]
+        self._min_max_amyloid = [0.,0.]
+        # ----------------------
+
         self.quantities = quantities
         self.time = time
         self.a = self._get_a_range()
@@ -163,7 +170,6 @@ class Connectome:
 
         self.source_val = 1.
 
-
     @property
     def nodesPosition(self):
         positions = {k: [self.nodes_info[k][v] for v in ['dn_position_x','dn_position_y','dn_position_z']] \
@@ -178,11 +184,123 @@ class Connectome:
         else:
             return self.G_prox
 
-    def alzheimerModelSimulation(self, G_prox = None, G_conn = None):
+    def printAllParameters(self):
+        output = f""" *--------- Model Parameters ---------*
+
+ - Proximity radius: {self.r_prox} mm
+ - Integration time: [{self.time[0]}, {self.time[-1]}] s
+ - a range: [{self.a[0]}, {self.a[-1]}]
+
+ - CG: {self.CG}
+ - CS: {self.CS}
+ - CW: {self.CW}
+ - CF: {self.CF}
+ - mu0: {self.mu0}
+ - U_bar: {self.U_bar}
+ - d1: {self.d1}
+ - d2: {self.d2}
+ - dw: {self.dw}
+ - s1: {self.s1}
+ - s2: {self.s2}
+ - s3: {self.s3}
+ - Cw: {self.Cw}
+ - uw: {self.uw}
+ - s4: {self.s4}
+ - Xi: {self.Xi}
+ - Lambda: {self.Lambda}
+
+ - sources: {self.source_val} # If 'H', then it uses Xi*exp(-t/Lambda)
+ - alpha: \n{self.alpha}
+
+*-----------------------------------------------------*
+"""
+        print(output)
+
+    def saveSimulation(self, path='', suffix='', log = None):
+
+        # PrintSimulationInfo([sim, alpha, Cw, elapsed_time])
+
+        np.save(f'{path}time_{suffix}', self.time)
+        np.save(f'{path}f_sol_{suffix}', self.quantities[0])
+        np.save(f'{path}u1_sol_{suffix}', self.quantities[1])
+        np.save(f'{path}u2_sol_{suffix}', self.quantities[2])
+        np.save(f'{path}u3_sol_{suffix}', self.quantities[3])
+        np.save(f'{path}w_sol_{suffix}', self.quantities[4])
+
+        if log is not None:
+            with open(f'{path}log_simulation_{log}.txt', 'w') as f:
+                f.write(f"####### Simulation {log} ########\n")
+                f.write(f""" - GENERALITIES:
+ - Brain Graph Nodes: {len(self.G.nodes())}
+ - Simulation Elapsed Time: {self._elapsed_time} s
+ - Source Nodes Region: {self._source_region}
+ - Tau Laplacian Min/Max Values: {self._min_max_tau[0]}/{self._min_max_tau[1]}
+ - Amyloid Laplacian Min/Max Values: {self._min_max_amyloid[0]}/{self._min_max_amyloid[1]}
+
+ - NETWORK COMPONENTS:
+ - Tau connectome components: {len(self.getNetworkComponents(graph='tau'))}
+ - Amyloid connectome components: {len(self.getNetworkComponents(graph='amyloid'))}
+CONTINUE..
+ 
+ - Proximity radius: {self.r_prox} mm
+ - Integration time: [{self.time[0]}, {self.time[-1]}] s
+ - Integration time steps: {len(self.time)}
+ - a range: [{self.a[0]}, {self.a[-1]}]
+ - a range steps (M): {len(self.a)}
+
+ - CG: {self.CG}
+ - CS: {self.CS}
+ - CW: {self.CW}
+ - CF: {self.CF}
+ - mu0: {self.mu0}
+ - U_bar: {self.U_bar}
+ - d1: {self.d1}
+ - d2: {self.d2}
+ - dw: {self.dw}
+ - s1: {self.s1}
+ - s2: {self.s2}
+ - s3: {self.s3}
+ - Cw: {self.Cw}
+ - uw: {self.uw}
+ - s4: {self.s4}
+ - Xi: {self.Xi}
+ - Lambda: {self.Lambda}
+
+ - sources: {self.source_val} # If 'H', then it uses Xi*exp(-t/Lambda)
+ - alpha: \n{self.alpha}""")
+    
+
+    def getNetworkComponents(self, graph):
+        
+        if graph == 'tau':
+            G = self.G
+        elif graph == 'amyloid':
+            G = self.G_prox
+        else:
+            ValueError(f"No graph found with name '{graph}'")
+            
+        components = []
+        components.append(list(nx.node_connected_component(G, list(G.nodes())[0])))
+
+        for n in list(G.nodes())[1:]:
+            
+            found = False
+            for component in components:
+                if n in component:
+                    found = True
+
+            if not found:
+                components.append(list(nx.node_connected_component(G,n)))
+
+        return components
+    
+
+    def alzheimerModelSimulation(self, G_prox = None, G_conn = None, seed=10):
 
         from scipy.integrate import solve_ivp
         from scipy.integrate import trapezoid
 
+        np.random.seed(seed)
 
         if G_prox is None:
             self.getProximityConnectome(self.r_prox)
@@ -191,10 +309,34 @@ class Connectome:
         if G_conn is None:
             G_conn = self.G
 
+        # Not that beautiful to see. 
+        if len(self.G.nodes()) == 83:
+            # ---------------------- 83 ------------------------
+            # Add a new attribute to each edge
+            for _, _, attr in G_conn.edges(data=True):
+                attr['weight'] = attr['number_of_fibers'] / attr['fiber_length_mean']**2
+
+            # # Specify edge weight
+            # nx.set_edge_attributes(G_conn, {(u, v): attrs["N_Lsqr_weights"] for u, v, attrs in G_conn.edges(data=True)}, "weight")
+            # ----------------------------------------------------
+        elif len(self.G.nodes()) == 1015:
+            # -------------- 1015 ------------
+            # Load both number of fibers and fiber length, then create a "weight" attribute defined as the ratio
+            G_conn = nx.read_graphml('data/budapest_connectome_3.0_5_0_median_length.graphml')
+            G2_ = nx.read_graphml('data/budapest_connectome_3.0_5_0_median_fibers.graphml')
+
+            # Add a new attribute to each edge
+            for u, v, attr in G_conn.edges(data=True):
+                attr['weight'] = G2_[u][v]['number_of_fiber_per_fiber_length_mean'] / attr['number_of_fiber_per_fiber_length_mean']
+
+            del G2_
+            # ---------------------------------
+
         L_prox = None
         L_conn = None
         L_prox = nx.laplacian_matrix(G_prox).toarray()
         L_conn = nx.laplacian_matrix(G_conn).toarray()
+
         del G_prox, G_conn
 
         N = len(self.G.nodes())
@@ -224,6 +366,13 @@ class Connectome:
 
         source_nodes = list(self.getNodesInRegion('lh.entorhinal'))
         source_nodes.extend(self.getNodesInRegion('rh.entorhinal'))
+
+        # ------- LOG --------
+        self._min_max_tau[0], self._min_max_tau[1] = np.min(L_conn), np.max(L_conn)
+        self._min_max_amyloid[0], self._min_max_amyloid[1] = np.min(L_prox), np.max(L_prox)
+        self._source_region = 'entorhinal'
+        # --------------------
+
         w[source_nodes] = 0.
         z0 = np.concatenate([f, u1, u2, u3, w])
         del f, u1, u2, u3, w
@@ -254,7 +403,7 @@ class Connectome:
 
             dydt[N*M:N*M+N] = -self.d1*L_abeta @ y[N*M:N*M+N] - y[N*M:N*M+N]*(self.alpha[0,0]*y[N*M:N*M+N]+self.alpha[0,1]*y[N*M+N:N*M+2*N]+self.alpha[0,2]*y[N*M+2*N:N*M+3*N]) +\
                               self.CF*np.array([trapezoid((self.mu0+self.a)*(1-self.a)*C[k*M_a0:(k+1)*M_a0], self.a) for k in range(N)]) -\
-                              self.s1*y[N*M:N*M+N] 
+                              self.s1*y[N*M:N*M+N]
 
             dydt[N*M+N:N*M+2*N] = -self.d2*L_abeta @ y[N*M+N:N*M+2*N] + 0.5*self.alpha[0,0]*y[N*M:N*M+N]*y[N*M:N*M+N]-y[N*M+N:N*M+2*N]*\
                                    (self.alpha[1,0]*y[N*M:N*M+N]+self.alpha[1,1]*y[N*M+N:N*M+2*N]+self.alpha[1,2]*y[N*M+2*N:N*M+3*N]) - \
@@ -276,14 +425,14 @@ class Connectome:
         import time as tm
         t1 = tm.perf_counter()
         sol = solve_ivp(alzheimerModel, t_span=[self.time[0],self.time[-1]], t_eval=self.time, y0=z0, method='RK23', args=(L_conn, L_prox, C))
-        print(tm.perf_counter()-t1)
+        self._elapsed_time = tm.perf_counter()-t1
 
+        print("\nSimulation compleated.\n")
         # ///// Integrator solutions /////
         self.quantities = [sol.y[:N*M,:], sol.y[N*M:N*M+N,:], sol.y[N*M+N:N*M+2*N,:], sol.y[N*M+2*N:N*M+3*N,:], sol.y[N*M+3*N:N*M+4*N,:]]
 
         del sol
     
-
 
 
     def setIntegrationTime(self, time):
@@ -720,9 +869,10 @@ class Connectome:
         plt.plot(self.time, np.mean(self.quantities[2], axis=0), '-', label=r'avg $u2$')
         plt.plot(self.time, np.mean(self.quantities[3], axis=0), '-', label=r'avg $u3$')
         plt.plot(self.time, np.mean(self.quantities[4], axis=0), '-', label=r'avg $w$')
-
+        
         plt.xlabel('Time, a.u.', fontsize=15)
         plt.ylabel(r'$\vec{\varphi}(t)$', fontsize=15)
+
         plt.title(f'{title}', fontweight='bold', fontsize=16)
         plt.grid(True)
         plt.tight_layout()
