@@ -524,12 +524,7 @@ CONTINUE..
         nodes_locations = {k: self.nodes_info[k]['dn_name'] for k in self.nodes_info.keys()}
 
         # This is consistent because the nodes dictionary is ORDERED, strting from 0 to N-1!
-        
         nodes_in_region = np.where(np.array([a.split("_")[0] for a in nodes_locations.values()])==region)[0]
-
-        # At the moment, it can be both int or list. It doesn't bother numpy anyway, so we leave it like that
-        # if isinstance(nodes_in_region, int):
-        #     nodes_in_region = [nodes_in_region]
 
         return nodes_in_region
     
@@ -586,7 +581,7 @@ CONTINUE..
         self.proximity_df = None
 
 
-    def getAtrophy(self, region = None) -> np.ndarray:
+    def getAtrophy(self, regions : list = None):
         """
         Description
         -----------
@@ -612,7 +607,7 @@ CONTINUE..
             atrophy[:,t] = [trapezoid(self.a * self.quantities[0][k*M:(k+1)*M, t], self.a) for k in range(N)]
             # atrophy[:,t] = atrophy[:,t]/rho # Evaluate atrophy during whole evolution for all nodes
 
-        if region == 'all':
+        if regions is None:
 
             for reg in self.all_regions:
 
@@ -621,14 +616,27 @@ CONTINUE..
                 for t,_ in enumerate(self.time):
                     atrophy[nodes_in_region, t] = np.sum(atrophy[nodes_in_region, t])/reg_size
 
-        elif region is not None:
-            nodes_in_region = self.getNodesInRegion(region=region)
-            atrophy = np.sum(atrophy[nodes_in_region, -1])/len(nodes_in_region) # Atrophy of those nodes at last time
+            return atrophy
+        
+        elif isinstance(regions, list):
+            
+            regionsAtrophy = dict()
 
-        else: pass
+            for reg in regions:
+                nodes_in_region = self.getNodesInRegion(region=reg)
+                reg_size = len(nodes_in_region)
+                for t,_ in enumerate(self.time):
+                    atrophy[nodes_in_region, t] = np.sum(atrophy[nodes_in_region, t])/reg_size
 
-        return atrophy
+                # We only need one node, since in the region the atrophy value is averaged
+                regionsAtrophy[reg] = atrophy[nodes_in_region[0], :]
 
+            return regionsAtrophy
+
+        else:
+            raise ValueError("Wrong format, 'regions' should be a list.")
+
+        
 
     def drawConnectome(self, highlight_nodes = None, region = None, links = False,
                         normal_size=40, highlight_size=40, link_size = 0.1, title = 'Connectome'):
@@ -733,7 +741,7 @@ CONTINUE..
         plt.show()
 
 
-    def drawConnectomeQuantity(self, quantity, visualization = 'spatial', links=True, title='Connectome quantity evaluation'):
+    def drawConnectomeQuantity(self, quantity, visualization = 'spatial', links=False, title='Connectome quantity evaluation'):
         """
         Description
         -----------
@@ -743,20 +751,14 @@ CONTINUE..
         """
 
         from matplotlib.widgets import Slider
-        import matplotlib
-        cmap = matplotlib.cm.get_cmap('Reds') 
 
-        time = [i for i in range(quantity.shape[1])]
+        quantity_copy = quantity.copy()
+
+        maxQuantityValue = np.max(quantity_copy)
+        color = (1,1,1,1) # white, changes to balck
 
         if visualization == 'spatial':
-            max_val = np.max(quantity)
-            for t_ind in range(len(time)):
-                quantity[:,t_ind] = quantity[:,t_ind]/max_val
-
-            cmap = plt.cm.get_cmap('Reds')
-
-            del max_val
-
+        
             fig = plt.figure(figsize=(12, 9))
             ax = fig.add_subplot(projection='3d')
             ax.view_init(elev=10, azim=-90)
@@ -774,7 +776,12 @@ CONTINUE..
 
                 t = int(t)
                 for node, sp in enumerate(scatter_plots):
-                    sp.set_color(cmap(quantity[node,t]))
+                    sp.set_color((color[0]*(maxQuantityValue-quantity_copy[node, t])/maxQuantityValue, 
+                                  color[1]*(maxQuantityValue-quantity_copy[node, t])/maxQuantityValue, 
+                                  color[2]*(maxQuantityValue-quantity_copy[node, t])/maxQuantityValue, 
+                                  color[3]))
+
+                    sp.set_edgecolor('black')
 
 
             for node in self.G.nodes():
@@ -782,13 +789,13 @@ CONTINUE..
                 sp = ax.scatter(self.nodes_info[node]['dn_position_x'],
                                 self.nodes_info[node]['dn_position_y'],
                                 self.nodes_info[node]['dn_position_z'],
-                                marker='o', s=100)
+                                marker='o', s=100, edgecolors='black')
                 
                 scatter_plots.append(sp)
 
             # Create a slider widget to control the value of val
             t_slider = plt.axes([0.25, 0.1, 0.65, 0.03])
-            slider = Slider(t_slider, 'Time [ind]', 0, len(time)-1, 0)
+            slider = Slider(t_slider, 'Time [ind]', 0, len(self.time)-1, 0)
             slider.on_changed(update_color)
 
             ax.set_xlabel('x position', fontsize=12)
@@ -796,35 +803,141 @@ CONTINUE..
             ax.set_zlabel('z position', fontsize=12)
 
             plt.grid(alpha=0.4)
-            plt.title(f'{title}, time [{self.time[0], self.time[len(time)-1]}]', fontsize=16, fontweight='bold')
+            plt.title(f'{title}, time [{self.time[0], self.time[len(self.time)-1]}]', fontsize=16, fontweight='bold')
             plt.show()
 
         elif visualization == 'linear':
             
+            import matplotlib
+            cmap = matplotlib.cm.get_cmap('Reds')
+  
             N = len(self.G.nodes())
-            max_val = np.max(quantity)
-            sp = plt.scatter([i for i in range(N)], [j for j in quantity[:,0]], vmin=0, vmax=max_val,
-                                            c=[j for j in quantity[:,0]], s=[20]*N, marker='o', cmap=cmap)
+            sp = plt.scatter([i for i in range(N)], [j for j in quantity_copy[:,0]], vmin=0, vmax=maxQuantityValue,
+                                            c=[j for j in quantity_copy[:,0]], s=[20]*N, marker='o', cmap=cmap)
 
             def update_color(t):
 
                 t = int(t)
-                sp.set_offsets(np.column_stack(([i for i in range(N)], [j for j in quantity[:,t]])))
-                sp.set_color([cmap(quantity[node,t]/max_val) for node in range(N)])
+                sp.set_offsets(np.column_stack(([i for i in range(N)], [j for j in quantity_copy[:,t]])))
+                sp.set_color([cmap(quantity_copy[node,t]/maxQuantityValue) for node in range(N)])
+
 
             plt.colorbar(sp) # Draw color bar on the right
 
-            plt.ylim([0, max_val+0.05*max_val]) # Y axis limit, to keep the initial scale, otherwise it resizes everytime
+            plt.ylim([0, maxQuantityValue+0.05*maxQuantityValue]) # Y axis limit, to keep the initial scale, otherwise it resizes everytime
 
-            plt.title(f'{title}, time [{self.time[0], self.time[len(time)-1]}]', fontsize=16, fontweight='bold')
+            plt.title(f'{title}, time [{self.time[0], self.time[len(self.time)-1]}]', fontsize=16, fontweight='bold')
             plt.xlabel('node id', fontsize=12)
             plt.ylabel('quantity', fontsize=12)
             plt.grid(alpha=0.7)
              # Create a slider widget to control the value of val
             t_slider = plt.axes([0.15, 0.02, 0.65, 0.03])
-            slider = Slider(t_slider, 'Time [ind]', 0, len(time)-1, 0)
+            slider = Slider(t_slider, 'Time [ind]', 0, len(self.time)-1, 0)
             slider.on_changed(update_color)
             plt.show()
+
+
+    def drawQuantityInRegions(self, quantitiesDict, links=False, normal_size=100, highlight_size=150, title='Connectome quantity evaluation'):
+        """
+        Description
+        -----------
+        Quantities dynamical visualization on the connectome. The time evolution is the one given to the constructor and has obiously
+        to match the simulation points.
+
+        """
+
+        from matplotlib.widgets import Slider
+        import matplotlib
+
+        fig = plt.figure(figsize=(12, 9))
+        ax = fig.add_subplot(projection='3d')
+        ax.view_init(elev=10, azim=-90)
+
+        scatter_plots = dict()
+        # Create empty lists
+        for reg in quantitiesDict.keys():
+            scatter_plots[reg] = []
+
+        maxQuantityValue = np.max(list(quantitiesDict.values()))
+
+        if links:
+            for n1,n2 in self.G.edges():
+
+                ax.plot([self.nodes_info[n1]['dn_position_x'],self.nodes_info[n2]['dn_position_x']],
+                        [self.nodes_info[n1]['dn_position_y'],self.nodes_info[n2]['dn_position_y']],
+                        [self.nodes_info[n1]['dn_position_z'],self.nodes_info[n2]['dn_position_z']], 'b', linestyle='-', linewidth=0.3)
+        
+        regNodes = []
+        for reg in quantitiesDict.keys():
+            regNodes.extend(self.getNodesInRegion(reg))
+
+        remainingNodes = [node for node in self.G.nodes() if node not in regNodes]
+        del regNodes
+
+        for node in remainingNodes:
+                
+            ax.scatter(self.nodes_info[node]['dn_position_x'],
+                       self.nodes_info[node]['dn_position_y'],
+                       self.nodes_info[node]['dn_position_z'],
+                       marker='o', s=normal_size, color=[(1.,1.,1.,1.)], edgecolors='black')
+        
+        del remainingNodes
+
+
+        for region in quantitiesDict.keys():
+
+            for node in self.getNodesInRegion(region=region):
+                    
+                sp = ax.scatter(self.nodes_info[node]['dn_position_x'],
+                                self.nodes_info[node]['dn_position_y'],
+                                self.nodes_info[node]['dn_position_z'],
+                                marker='o', s=highlight_size, edgecolors='black')
+                
+                scatter_plots[region].append(sp)
+
+        def update_color(t):
+
+            t = int(t)
+            
+            for reg, spList in scatter_plots.items():
+                color = _colors_[reg]
+                for sp in spList:
+                    sp.set_color((color[0], color[1], color[2], color[3]*(quantitiesDict[reg][t])/maxQuantityValue))
+                    sp.set_edgecolor('black')
+
+
+        # Create a slider widget to control the value of val
+        t_slider = plt.axes([0.25, 0.1, 0.65, 0.03])
+        slider = Slider(t_slider, 'Time [ind]', 0, len(self.time)-1, 0)
+        slider.on_changed(update_color)
+
+        ax.set_xlabel('x position', fontsize=12)
+        ax.set_ylabel('y position', fontsize=12)
+        ax.set_zlabel('z position', fontsize=12)
+
+        plt.grid(alpha=0.4)
+        plt.title(f'{title}, time [{self.time[0], self.time[len(self.time)-1]}]', fontsize=16, fontweight='bold')
+        plt.show()
+
+    
+    def drawAtrophy(self, atrophy, title="Atrophy Evaluation", **kwargs):
+
+        import matplotlib.pyplot as plt
+        
+        plt.grid(alpha=0.4)
+        plt.xlabel("time, a.u", fontsize=16)
+        plt.ylabel("atrophy", fontsize=16)
+        plt.title(f"{title}", fontsize=17, fontweight='bold')
+
+        if isinstance(atrophy, dict):
+            for reg, values in atrophy.items():
+                plt.plot(self.time, values, label=reg, **kwargs)
+            plt.legend()
+        else:
+            for nodeAtrophy in atrophy:
+                plt.plot(self.time, nodeAtrophy, **kwargs)
+
+        plt.show()
 
 
     def draw_f(self, title = "f solution"):
@@ -857,7 +970,7 @@ CONTINUE..
         plt.show()
 
 
-    def visualizeAvgQuantities(self, title = 'Average quantites evaluation'):
+    def drawAvgQuantities(self, title = 'Average quantites evaluation'):
         """
         Description
         -----------
