@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='OpenConnectome',
+    name='openconnectome',
     version='0.0.11',
     description='Brain Graph Management and Numerical Model Simulations on Brains',
     long_description=long_description,
