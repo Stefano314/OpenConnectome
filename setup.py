@@ -9,8 +9,8 @@ setup(
     description='Brain Graph Management and Numerical Model Simulations on Brains',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author=['Stefano Bianchi', 'Germana Landi', 'Maria Carla Tesi', 'Claudia Testa'],
-    author_email=['stefanobianchi314@gmail.com', 'germana.landi@unibo.it','mariacarla.tesi@unibo.it', 'claudia.testa@unibo.it'],
+    author='Stefano Bianchi',
+    author_email='stefanobianchi314@gmail.com',
     url='https://github.com/Stefano314/OpenConnectome',
     packages=find_packages(),
     install_requires=[
