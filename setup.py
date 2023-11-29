@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='OpenConnectome',
-    version='0.0.1',
+    version='0.0.11',
     description='Brain Graph Management and Numerical Model Simulations on Brains',
     long_description=long_description,
     long_description_content_type="text/markdown",
