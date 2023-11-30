@@ -264,7 +264,9 @@ class Connectome:
 
         if self.a is None: # If there is no a, just create a list of nones
             self.a = [None,None]
-
+        else:
+            np.save(f'{path}a_{suffix}', self.a)
+            
         np.save(f'{path}time_{suffix}', self.time)
         np.save(f'{path}f_sol_{suffix}', self.quantities[0])
         np.save(f'{path}u1_sol_{suffix}', self.quantities[1])
